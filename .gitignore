@@ -1,0 +1,16 @@
+# Ignore everything by default
+*
+
+# Keep git metadata rules effective
+!.gitignore
+
+# Keep deploy directory only
+!docs/
+!docs/**
+
+# Optional repo docs
+!DEPLOY.md
+
+# macOS noise
+.DS_Store
+docs/.DS_Store

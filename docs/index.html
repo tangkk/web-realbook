@@ -1,0 +1,135 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Web Realbook</title>
+  <style>
+    body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:1200px;margin:32px auto;padding:0 16px;line-height:1.4;background:#fff;color:#111}
+    .disclaimer{background:#f3f3f3;border:1px solid #cfcfcf;border-radius:12px;padding:14px 16px;margin:0 0 20px 0;color:#222}
+    .disclaimer p{margin:0;font-size:14px;line-height:1.55}
+    .bar{display:flex;gap:12px;align-items:center;margin:0 0 20px 0}
+    input{flex:1;padding:10px 12px;border:1px solid #bdbdbd;border-radius:8px;font-size:14px;background:#fff;color:#111}
+    .status{color:#555;font-size:13px;margin:0 0 16px 0}
+    .group{margin:28px 0}
+    .group h2{position:sticky;top:0;background:#fff;padding:8px 0;border-bottom:1px solid #bdbdbd;color:#111}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+    .item{border:1px solid #bdbdbd;border-radius:10px;padding:10px 12px;background:#fff}
+    .name{font-weight:600;color:#111}
+    .sub{color:#555;font-size:12px;margin-top:6px}
+    a,a:visited,a:hover,a:active{color:#111;text-decoration:none}
+    a:hover{text-decoration:underline}
+  </style>
+</head>
+<body>
+  <section class="disclaimer">
+    <p><strong>Disclaimer.</strong> This site is intended as a personal indexing and reference tool for locating tunes across books already in my possession. It is not meant to replace purchasing official editions or to compete with any rights holder's primary market. If you are a rights holder, publisher, or otherwise believe any material here is inappropriate, inaccurate, or should be removed, please contact me directly and I will review it promptly and act in good faith.</p>
+  </section>
+
+  <div class="bar">
+    <input id="passphrase" type="password" placeholder="Enter passphrase" />
+  </div>
+  <div id="status" class="status"></div>
+  <div id="list"></div>
+
+  <script>
+    async function deriveKey(passphrase, salt) {
+      const enc = new TextEncoder();
+      const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+      return crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt, iterations: 200000, hash: 'SHA-256' },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['decrypt']
+      );
+    }
+
+    async function decryptFile(arrayBuffer, passphrase) {
+      const bytes = new Uint8Array(arrayBuffer);
+      const magic = new TextDecoder().decode(bytes.slice(0, 5));
+      if (magic !== 'WRBK1') throw new Error('Invalid file format');
+      const salt = bytes.slice(5, 21);
+      const iv = bytes.slice(21, 33);
+      const ciphertext = bytes.slice(33);
+      const key = await deriveKey(passphrase, salt);
+      return crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+    }
+
+    async function openEncryptedPdf(file, passphrase) {
+      const res = await fetch(file);
+      if (!res.ok) throw new Error('Failed to fetch encrypted file');
+      const encrypted = await res.arrayBuffer();
+      const plain = await decryptFile(encrypted, passphrase);
+      const blob = new Blob([plain], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+    }
+
+    function titleFromStem(stem) {
+      const m = stem.match(/^\d+-(.*)-([a-z0-9]+)-\d+$/);
+      if (!m) return stem;
+      const middle = m[1].replace(/-/g, ' ');
+      const book = m[2].toUpperCase();
+      return `${middle}-${book}`;
+    }
+
+    function groupByLetter(items) {
+      const groups = {};
+      for (const item of items) {
+        const name = titleFromStem(item.title);
+        const ch = (name[0] || '#').toUpperCase();
+        const key = /[A-Z]/.test(ch) ? ch : '#';
+        (groups[key] ||= []).push({ ...item, display: name });
+      }
+      return groups;
+    }
+
+    async function init() {
+      const manifest = await fetch('./secure-manifest.json').then(r => r.json());
+      const groups = groupByLetter(manifest);
+      const order = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', '#'].filter(k => groups[k]);
+      const list = document.getElementById('list');
+      list.innerHTML = order.map(letter => `
+        <section class="group">
+          <h2>${letter}</h2>
+          <div class="grid">
+            ${groups[letter].map(item => `
+              <div class="item">
+                <div class="name"><a href="#" data-file="${item.file}">${item.display}</a></div>
+              </div>
+            `).join('')}
+          </div>
+        </section>
+      `).join('');
+
+      list.addEventListener('click', async (e) => {
+        const a = e.target.closest('a[data-file]');
+        if (!a) return;
+        e.preventDefault();
+        const passphrase = document.getElementById('passphrase').value;
+        const status = document.getElementById('status');
+        if (!passphrase) {
+          status.textContent = 'Enter passphrase first';
+          return;
+        }
+        status.textContent = 'Decrypting...';
+        try {
+          await openEncryptedPdf(a.dataset.file, passphrase);
+          status.textContent = 'Opened';
+        } catch (err) {
+          status.textContent = 'Decrypt failed';
+          alert('Decrypt failed: ' + err.message);
+          console.error(err);
+        }
+      });
+    }
+
+    init().catch(err => {
+      const status = document.getElementById('status');
+      status.textContent = 'Failed to load manifest';
+      console.error(err);
+    });
+  </script>
+</body>
+</html>

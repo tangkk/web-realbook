@@ -33,6 +33,15 @@
   <div id="list"></div>
 
   <script>
+    function focusPassphrase(message) {
+      const input = document.getElementById('passphrase');
+      const status = document.getElementById('status');
+      status.textContent = message;
+      input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      input.focus();
+      input.select();
+    }
+
     async function deriveKey(passphrase, salt) {
       const enc = new TextEncoder();
       const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
@@ -110,7 +119,7 @@
         const passphrase = document.getElementById('passphrase').value;
         const status = document.getElementById('status');
         if (!passphrase) {
-          status.textContent = 'Enter passphrase first';
+          focusPassphrase('Please enter the passphrase first.');
           return;
         }
         status.textContent = 'Decrypting...';
@@ -118,9 +127,8 @@
           await openEncryptedPdf(a.dataset.file, passphrase);
           status.textContent = 'Opened';
         } catch (err) {
-          status.textContent = 'Decrypt failed';
-          alert('Decrypt failed: ' + err.message);
           console.error(err);
+          focusPassphrase('Passphrase missing or incorrect. Please try again.');
         }
       });
     }

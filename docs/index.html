@@ -22,10 +22,15 @@
     .intro p{margin:0;font-size:14px;line-height:1.6}
     .bar{display:flex;gap:12px;align-items:center;margin:0 0 20px 0;flex-wrap:wrap}
     input{flex:1;min-width:220px;padding:10px 12px;border:1px solid #bdbdbd;border-radius:8px;font-size:16px;background:#fff;color:#111}
+    .bar input{max-width:320px}
     .mini-btn{display:inline-block;border:1px solid #111;border-radius:999px;padding:8px 12px;font-size:13px;color:#111;background:#fff;cursor:pointer}
     .status{color:#555;font-size:13px;margin:0 0 16px 0}
     .searchbar{display:flex;gap:12px;align-items:center;margin:0 0 16px 0;flex-wrap:wrap}
     .searchbar input{max-width:320px}
+    .jumpbar{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px 0}
+    .jumpbar a{display:inline-block;border:1px solid #111;border-radius:999px;padding:6px 10px;font-size:12px;color:#111;background:#fff;text-decoration:none}
+    .backtotop{position:fixed;right:20px;bottom:20px;display:none;border:1px solid #111;border-radius:999px;padding:10px 14px;font-size:13px;color:#111;background:#fff;text-decoration:none;z-index:60;box-shadow:0 6px 20px rgba(0,0,0,.08)}
+    .backtotop.show{display:inline-block}
     .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.18);z-index:50}
     .overlay.show{display:block}
     .popup{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(92vw,560px);max-height:70vh;overflow:auto;background:#fff;border:1px solid #bdbdbd;border-radius:14px;padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,.12)}
@@ -46,7 +51,7 @@
     a:hover{text-decoration:underline}
   </style>
 </head>
-<body>
+<body id="top">
   <section class="disclaimer">
     <p><strong>Disclaimer.</strong> This site is intended as a personal indexing and reference tool for locating tunes across books already in my possession. It is not meant to replace purchasing official editions or to compete with any rights holder's primary market. If you are a rights holder, publisher, or otherwise believe any material here is inappropriate, inaccurate, or should be removed, please contact me directly and I will review it promptly and act in good faith.</p>
   </section>
@@ -59,16 +64,19 @@
   <div class="bar">
     <input id="passphrase" type="password" placeholder="Enter passphrase" />
     <button id="recoverBtn" class="mini-btn" type="button">Recover passphrase</button>
+    <a class="mini-btn" href="./ireal-demo/">Open iReal Charts</a>
   </div>
   <div class="searchbar">
     <input id="searchInput" type="search" placeholder="Search title" />
   </div>
+  <div id="jumpbar" class="jumpbar"></div>
   <div id="status" class="status"></div>
   <div id="actions" class="actions">
     <a id="openBtn" class="btn" href="#">Open PDF</a>
     <a id="downloadBtn" class="btn" href="#" download>Download PDF</a>
   </div>
   <div id="list"></div>
+  <a id="backToTop" class="backtotop" href="#top">Back to top</a>
   <div id="searchOverlay" class="overlay">
     <div class="popup">
       <div class="popup-head">
@@ -227,8 +235,10 @@
       const allItems = Object.values(groups).flat();
       const order = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', '#'].filter(k => groups[k]);
       const list = document.getElementById('list');
+      const jumpbar = document.getElementById('jumpbar');
+      jumpbar.innerHTML = order.map(letter => `<a href="#group-${letter}">${letter}</a>`).join('');
       list.innerHTML = order.map(letter => `
-        <section class="group">
+        <section class="group" id="group-${letter}">
           <h2>${letter}</h2>
           <div class="grid">
             ${groups[letter].map(item => `
@@ -259,6 +269,11 @@
 
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') searchOverlay.classList.remove('show');
+      });
+
+      const backToTop = document.getElementById('backToTop');
+      window.addEventListener('scroll', () => {
+        backToTop.classList.toggle('show', window.scrollY > 600);
       });
 
       document.body.addEventListener('click', async (e) => {

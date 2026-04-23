@@ -1,0 +1,71 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>A Night In Tunisia · iReal demo</title>
+  <style>
+    :root{--bg:#f5f5f5;--paper:#ffffff;--ink:#111111;--muted:#555555;--line:#cfcfcf;--accent:#111111}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);font-size:80%}
+    .wrap{max-width:880px;margin:0 auto;padding:22px 14px 48px}
+    .top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:18px}
+    .back{display:inline-block;color:var(--accent);text-decoration:none;font-weight:600}
+    .card{background:var(--paper);border:1px solid var(--line);border-radius:18px;box-shadow:0 8px 30px rgba(60,40,10,.06)}
+    .hero{padding:18px 18px 14px}
+    h1{margin:0 0 8px;font-size:2.1rem;line-height:1.08;letter-spacing:-.02em}
+    .meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px;margin-top:14px}
+    .meta-item{padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:#fff}
+    .meta-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:4px}
+    .meta-value{font-size:.95rem;font-weight:600}
+    .chart{margin-top:14px;padding:14px}
+    .chart-head{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+    .chart-title{font-size:1.1rem;font-weight:700}
+    .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+    .measure{min-height:78px;border:1px solid var(--line);border-radius:10px;background:#fff;padding:18px 10px 8px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:visible}
+    .block-start{box-shadow:inset 3px 0 0 var(--accent)}
+    .repeat-start{border-left:3px solid #111}
+    .repeat-end{border-right:3px solid #111}
+    .heavy-left{box-shadow:inset 3px 0 0 #111}
+    .heavy-right{box-shadow:inset -3px 0 0 #111}
+    .repeat-glyph{position:absolute;top:50%;transform:translateY(-50%);font-size:.95rem;font-weight:700;color:#111;background:#fff;padding:0 2px;line-height:1}
+    .repeat-glyph.left{left:-11px}
+    .repeat-glyph.right{right:-11px}
+    .ending-bracket{position:absolute;left:6px;right:6px;top:4px;height:10px;border-top:2px solid #111}
+    .ending-bracket.start{border-left:2px solid #111;border-top-left-radius:4px}
+    .ending-label{position:absolute;left:4px;top:-11px;font-size:.62rem;color:#111;background:var(--paper);padding:0 3px}
+    .mhead{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;margin-bottom:4px}
+    .mnum{font-size:.68rem;color:var(--muted);font-variant-numeric:tabular-nums}
+    .mflags{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+    .flag{display:inline-block;padding:2px 6px;border-radius:999px;font-size:.62rem;line-height:1.3;border:1px solid var(--line);background:#faf3e6;color:#5a4f41}
+    .section-flag{background:#f3f3f3;color:#111;border-color:#cfcfcf;font-weight:700}
+    .ending-flag{background:#f3f3f3;color:#111}
+    .nav-flag{background:#f3f3f3;color:#111}
+    .misc-flag{background:#f3f3f3;color:#111}
+    .comment-flag{background:#f3f3f3;color:#111;border-color:#cfcfcf}
+    .mbody{font-size:1rem;line-height:1.3;font-weight:600;letter-spacing:.01em;word-break:break-word}
+    .chord-main{white-space:nowrap}
+    .nc{color:#555;font-style:italic}
+    .chord-bass{white-space:nowrap;color:#111}
+    .sep{color:#b9aa94;font-weight:400}
+    .rest{color:#777}
+    .repeat-mark{color:#111;font-size:1.35rem;font-weight:700;letter-spacing:.04em}
+    @media (max-width:900px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media (max-width:560px){h1{font-size:1.8rem}.grid{grid-template-columns:1fr}.measure{min-height:62px}.mbody{font-size:.95rem}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top"><a class="back" href="../index.html">← Back to iReal chart list</a></div>
+    <section class="card hero">
+      <h1>A Night In Tunisia</h1>
+      <div class="meta">
+        <div class="meta-item"><div class="meta-label">Composer</div><div class="meta-value">Dizzy Gillespie</div></div><div class="meta-item"><div class="meta-label">Style</div><div class="meta-value">Latin</div></div><div class="meta-item"><div class="meta-label">Key</div><div class="meta-value">D-</div></div><div class="meta-item"><div class="meta-label">Time</div><div class="meta-value">44</div></div><div class="meta-item"><div class="meta-label">Bars</div><div class="meta-value">39</div></div>
+      </div>
+    </section>
+    <section class="card chart">
+      <div class="grid"><div class="measure block-start repeat-start"><div class="repeat-glyph left">‖:</div><div class="mhead"><div class="mnum">1</div><div class="mflags"><span class="flag section-flag">A</span></div></div><div class="mbody"><span class="chord-main">Eb7</span></div></div><div class="measure"><div class="mhead"><div class="mnum">2</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">D-6</span></div></div><div class="measure"><div class="mhead"><div class="mnum">3</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">Eb7</span></div></div><div class="measure"><div class="mhead"><div class="mnum">4</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">D-6</span></div></div><div class="measure"><div class="mhead"><div class="mnum">5</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">Eb7</span></div></div><div class="measure"><div class="mhead"><div class="mnum">6</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">D-6</span></div></div><div class="measure"><div class="mhead"><div class="mnum">7</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">Em7b5</span><span class="sep"> · </span><span class="chord-main">A7b9</span></div></div><div class="measure repeat-end heavy-left"><div class="repeat-glyph right">:‖</div><div class="mhead"><div class="mnum">8</div><div class="mflags"><span class="flag section-flag">B</span></div></div><div class="mbody"><span class="chord-main">D-</span><span class="sep"> · </span><span class="chord-main">Am7b5</span></div></div><div class="measure block-start"><div class="mhead"><div class="mnum">9</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">D7b9</span></div></div><div class="measure"><div class="mhead"><div class="mnum">10</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">G-7</span></div></div><div class="measure"><div class="mhead"><div class="mnum">11</div><div class="mflags"></div></div><div class="mbody"><span class="rest repeat-mark">%</span></div></div><div class="measure"><div class="mhead"><div class="mnum">12</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">Gm7b5</span></div></div><div class="measure"><div class="mhead"><div class="mnum">13</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">C7b9</span></div></div><div class="measure"><div class="mhead"><div class="mnum">14</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">F^7</span></div></div><div class="measure heavy-right"><div class="mhead"><div class="mnum">15</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">Em7b5</span><span class="sep"> · </span><span class="chord-main">A7b9</span></div></div><div class="measure heavy-left"><div class="mhead"><div class="mnum">16</div><div class="mflags"><span class="flag section-flag">A</span></div></div><div class="mbody"><span class="chord-main">Eb7</span></div></div><div class="measure block-start"><div class="mhead"><div class="mnum">17</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">D-6</span></div></div><div class="measure"><div class="mhead"><div class="mnum">18</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">Eb7</span></div></div><div class="measure"><div class="mhead"><div class="mnum">19</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">D-6</span></div></div><div class="measure"><div class="mhead"><div class="mnum">20</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">Eb7</span></div></div><div class="measure"><div class="mhead"><div class="mnum">21</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">D-6</span></div></div><div class="measure"><div class="mhead"><div class="mnum">22</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">Em7b5</span><span class="sep"> · </span><span class="chord-main">A7b9</span></div></div><div class="measure heavy-right"><div class="mhead"><div class="mnum">23</div><div class="mflags"><span class="flag nav-flag">coda</span></div></div><div class="mbody"><span class="chord-main">D-</span></div></div><div class="measure heavy-left"><div class="mhead"><div class="mnum">24</div><div class="mflags"><span class="flag nav-flag">coda</span></div></div><div class="mbody"><span class="chord-main">Em7b5</span></div></div><div class="measure block-start"><div class="mhead"><div class="mnum">25</div><div class="mflags"></div></div><div class="mbody"><span class="rest repeat-mark">%</span></div></div><div class="measure"><div class="mhead"><div class="mnum">26</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">Eb7#11</span></div></div><div class="measure"><div class="mhead"><div class="mnum">27</div><div class="mflags"></div></div><div class="mbody"><span class="rest repeat-mark">%</span></div></div><div class="measure"><div class="mhead"><div class="mnum">28</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">D-7</span></div></div><div class="measure"><div class="mhead"><div class="mnum">29</div><div class="mflags"></div></div><div class="mbody"><span class="rest repeat-mark">%</span></div></div><div class="measure"><div class="mhead"><div class="mnum">30</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">G7#11</span></div></div><div class="measure"><div class="mhead"><div class="mnum">31</div><div class="mflags"></div></div><div class="mbody"><span class="rest repeat-mark">%</span></div></div><div class="measure"><div class="mhead"><div class="mnum">32</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">G-^7</span></div></div><div class="measure block-start"><div class="mhead"><div class="mnum">33</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">G-7</span></div></div><div class="measure"><div class="mhead"><div class="mnum">34</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">Gb7#9</span></div></div><div class="measure"><div class="mhead"><div class="mnum">35</div><div class="mflags"></div></div><div class="mbody"><span class="rest repeat-mark">%</span></div></div><div class="measure"><div class="mhead"><div class="mnum">36</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">F^7</span></div></div><div class="measure"><div class="mhead"><div class="mnum">37</div><div class="mflags"></div></div><div class="mbody"><span class="rest repeat-mark">%</span></div></div><div class="measure"><div class="mhead"><div class="mnum">38</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">Em7b5</span></div></div><div class="measure heavy-right"><div class="mhead"><div class="mnum">39</div><div class="mflags"></div></div><div class="mbody"><span class="chord-main">A7b9</span></div></div></div>
+    </section>
+  </div>
+</body>
+</html>

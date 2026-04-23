@@ -12,6 +12,15 @@
     input{flex:1;min-width:220px;padding:10px 12px;border:1px solid #bdbdbd;border-radius:8px;font-size:16px;background:#fff;color:#111}
     .mini-btn{display:inline-block;border:1px solid #111;border-radius:999px;padding:8px 12px;font-size:13px;color:#111;background:#fff;cursor:pointer}
     .status{color:#555;font-size:13px;margin:0 0 16px 0}
+    .searchbar{display:flex;gap:12px;align-items:center;margin:0 0 16px 0;flex-wrap:wrap}
+    .searchbar input{max-width:320px}
+    .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.18);z-index:50}
+    .overlay.show{display:block}
+    .popup{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(92vw,560px);max-height:70vh;overflow:auto;background:#fff;border:1px solid #bdbdbd;border-radius:14px;padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,.12)}
+    .popup-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+    .popup-title{font-size:14px;color:#333}
+    .popup-list{display:flex;flex-direction:column;gap:8px}
+    .popup-item{border:1px solid #cfcfcf;border-radius:10px;padding:10px 12px;background:#fff}
     .group{margin:28px 0}
     .group h2{position:sticky;top:0;background:#fff;padding:8px 0;border-bottom:1px solid #bdbdbd;color:#111}
     .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
@@ -34,12 +43,24 @@
     <input id="passphrase" type="password" placeholder="Enter passphrase" />
     <button id="recoverBtn" class="mini-btn" type="button">Recover passphrase</button>
   </div>
+  <div class="searchbar">
+    <input id="searchInput" type="search" placeholder="Search title" />
+  </div>
   <div id="status" class="status"></div>
   <div id="actions" class="actions">
     <a id="openBtn" class="btn" href="#">Open PDF</a>
     <a id="downloadBtn" class="btn" href="#" download>Download PDF</a>
   </div>
   <div id="list"></div>
+  <div id="searchOverlay" class="overlay">
+    <div class="popup">
+      <div class="popup-head">
+        <div id="popupTitle" class="popup-title">Search</div>
+        <button id="closeSearch" class="mini-btn" type="button">Close</button>
+      </div>
+      <div id="popupList" class="popup-list"></div>
+    </div>
+  </div>
 
   <script>
     let currentBlobUrl = null;
@@ -146,15 +167,34 @@
       return `${middle}-${book}`;
     }
 
+    function normalizeText(s) {
+      return (s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    }
+
     function groupByLetter(items) {
       const groups = {};
       for (const item of items) {
         const name = titleFromStem(item.title);
         const ch = (name[0] || '#').toUpperCase();
         const key = /[A-Z]/.test(ch) ? ch : '#';
-        (groups[key] ||= []).push({ ...item, display: name });
+        (groups[key] ||= []).push({ ...item, display: name, normalized: normalizeText(name) });
       }
       return groups;
+    }
+
+    function renderSearchResults(matches, query) {
+      const overlay = document.getElementById('searchOverlay');
+      const popupTitle = document.getElementById('popupTitle');
+      const popupList = document.getElementById('popupList');
+      popupTitle.textContent = `Search: ${query}`;
+      popupList.innerHTML = matches.length
+        ? matches.map(item => `
+            <div class="popup-item">
+              <a href="#" data-file="${item.file}" data-name="${item.title}.pdf">${item.display}</a>
+            </div>
+          `).join('')
+        : '<div class="popup-item">No exact matches.</div>';
+      overlay.classList.add('show');
     }
 
     async function init() {
@@ -167,6 +207,7 @@
       });
       const manifest = await fetch('./secure-manifest.json').then(r => r.json());
       const groups = groupByLetter(manifest);
+      const allItems = Object.values(groups).flat();
       const order = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', '#'].filter(k => groups[k]);
       const list = document.getElementById('list');
       list.innerHTML = order.map(letter => `
@@ -182,7 +223,28 @@
         </section>
       `).join('');
 
-      list.addEventListener('click', async (e) => {
+      const searchInput = document.getElementById('searchInput');
+      const searchOverlay = document.getElementById('searchOverlay');
+      const closeSearch = document.getElementById('closeSearch');
+      searchInput.addEventListener('input', () => {
+        const query = normalizeText(searchInput.value);
+        if (query.length < 2) {
+          searchOverlay.classList.remove('show');
+          return;
+        }
+        const matches = allItems.filter(item => item.normalized.includes(query));
+        renderSearchResults(matches, searchInput.value.trim());
+      });
+      closeSearch.addEventListener('click', () => searchOverlay.classList.remove('show'));
+      searchOverlay.addEventListener('click', (e) => {
+        if (e.target === searchOverlay) searchOverlay.classList.remove('show');
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') searchOverlay.classList.remove('show');
+      });
+
+      document.body.addEventListener('click', async (e) => {
         const a = e.target.closest('a[data-file]');
         if (!a) return;
         e.preventDefault();

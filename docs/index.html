@@ -8,8 +8,9 @@
     body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:1200px;margin:32px auto;padding:0 16px;line-height:1.4;background:#fff;color:#111}
     .disclaimer{background:#f3f3f3;border:1px solid #cfcfcf;border-radius:12px;padding:14px 16px;margin:0 0 20px 0;color:#222}
     .disclaimer p{margin:0;font-size:14px;line-height:1.55}
-    .bar{display:flex;gap:12px;align-items:center;margin:0 0 20px 0}
-    input{flex:1;padding:10px 12px;border:1px solid #bdbdbd;border-radius:8px;font-size:14px;background:#fff;color:#111}
+    .bar{display:flex;gap:12px;align-items:center;margin:0 0 20px 0;flex-wrap:wrap}
+    input{flex:1;min-width:220px;padding:10px 12px;border:1px solid #bdbdbd;border-radius:8px;font-size:14px;background:#fff;color:#111}
+    .mini-btn{display:inline-block;border:1px solid #111;border-radius:999px;padding:8px 12px;font-size:13px;color:#111;background:#fff;cursor:pointer}
     .status{color:#555;font-size:13px;margin:0 0 16px 0}
     .group{margin:28px 0}
     .group h2{position:sticky;top:0;background:#fff;padding:8px 0;border-bottom:1px solid #bdbdbd;color:#111}
@@ -31,6 +32,7 @@
 
   <div class="bar">
     <input id="passphrase" type="password" placeholder="Enter passphrase" />
+    <button id="recoverBtn" class="mini-btn" type="button">Recover passphrase</button>
   </div>
   <div id="status" class="status"></div>
   <div id="actions" class="actions">
@@ -158,7 +160,11 @@
     async function init() {
       restorePassphrase();
       const input = document.getElementById('passphrase');
-      input.addEventListener('input', () => savePassphrase(input.value));
+      const recoverBtn = document.getElementById('recoverBtn');
+      recoverBtn.addEventListener('click', () => {
+        restorePassphrase();
+        focusPassphrase('Passphrase recovered from local storage.');
+      });
       const manifest = await fetch('./secure-manifest.json').then(r => r.json());
       const groups = groupByLetter(manifest);
       const order = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', '#'].filter(k => groups[k]);
@@ -195,6 +201,7 @@
         try {
           if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
           currentBlobUrl = await decryptToBlobUrl(a.dataset.file, passphrase);
+          savePassphrase(passphrase);
           setActionLinks(currentBlobUrl, a.dataset.name);
           status.textContent = 'Decrypted. Tap Open PDF or Download PDF.';
         } catch (err) {

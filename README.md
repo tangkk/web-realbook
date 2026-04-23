@@ -115,9 +115,3 @@ Live URL:
 
 - https://tangkk.github.io/web-realbook/
 
-## Workflow note
-
-Project rule from KT:
-
-- when KT asks to change the index page, directly edit `docs/index.html`
-- do not rebuild unrelated assets just to tweak page copy or UI

@@ -17,6 +17,9 @@
     .item{border:1px solid #bdbdbd;border-radius:10px;padding:10px 12px;background:#fff}
     .name{font-weight:600;color:#111}
     .sub{color:#555;font-size:12px;margin-top:6px}
+    .actions{display:none;gap:10px;flex-wrap:wrap;margin:0 0 18px 0}
+    .actions.show{display:flex}
+    .btn{display:inline-block;border:1px solid #111;border-radius:999px;padding:8px 14px;font-size:13px;color:#111;background:#fff;text-decoration:none}
     a,a:visited,a:hover,a:active{color:#111;text-decoration:none}
     a:hover{text-decoration:underline}
   </style>
@@ -30,9 +33,15 @@
     <input id="passphrase" type="password" placeholder="Enter passphrase" />
   </div>
   <div id="status" class="status"></div>
+  <div id="actions" class="actions">
+    <a id="openBtn" class="btn" href="#">Open PDF</a>
+    <a id="downloadBtn" class="btn" href="#" download>Download PDF</a>
+  </div>
   <div id="list"></div>
 
   <script>
+    let currentBlobUrl = null;
+
     function focusPassphrase(message) {
       const input = document.getElementById('passphrase');
       const status = document.getElementById('status');
@@ -42,7 +51,30 @@
       input.select();
     }
 
+    function setActionLinks(blobUrl, filename) {
+      const actions = document.getElementById('actions');
+      const openBtn = document.getElementById('openBtn');
+      const downloadBtn = document.getElementById('downloadBtn');
+      openBtn.href = blobUrl;
+      openBtn.onclick = () => {
+        location.href = blobUrl;
+      };
+      downloadBtn.href = blobUrl;
+      downloadBtn.download = filename || 'chart.pdf';
+      actions.classList.add('show');
+      actions.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function isSecureEnoughForCrypto() {
+      return window.isSecureContext || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    }
+
     async function deriveKey(passphrase, salt) {
+      if (!window.crypto || !window.crypto.subtle) {
+        const err = new Error('Web Crypto unavailable');
+        err.code = 'ENV_CRYPTO_UNAVAILABLE';
+        throw err;
+      }
       const enc = new TextEncoder();
       const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
       return crypto.subtle.deriveKey(
@@ -57,22 +89,31 @@
     async function decryptFile(arrayBuffer, passphrase) {
       const bytes = new Uint8Array(arrayBuffer);
       const magic = new TextDecoder().decode(bytes.slice(0, 5));
-      if (magic !== 'WRBK1') throw new Error('Invalid file format');
+      if (magic !== 'WRBK1') {
+        const err = new Error('Invalid file format');
+        err.code = 'FILE_FORMAT';
+        throw err;
+      }
       const salt = bytes.slice(5, 21);
       const iv = bytes.slice(21, 33);
       const ciphertext = bytes.slice(33);
       const key = await deriveKey(passphrase, salt);
-      return crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+      try {
+        return await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+      } catch (e) {
+        const err = new Error('Decrypt failed');
+        err.code = 'BAD_PASSPHRASE';
+        throw err;
+      }
     }
 
-    async function openEncryptedPdf(file, passphrase) {
+    async function decryptToBlobUrl(file, passphrase) {
       const res = await fetch(file);
       if (!res.ok) throw new Error('Failed to fetch encrypted file');
       const encrypted = await res.arrayBuffer();
       const plain = await decryptFile(encrypted, passphrase);
       const blob = new Blob([plain], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
+      return URL.createObjectURL(blob);
     }
 
     function titleFromStem(stem) {
@@ -105,7 +146,7 @@
           <div class="grid">
             ${groups[letter].map(item => `
               <div class="item">
-                <div class="name"><a href="#" data-file="${item.file}">${item.display}</a></div>
+                <div class="name"><a href="#" data-file="${item.file}" data-name="${item.title}.pdf">${item.display}</a></div>
               </div>
             `).join('')}
           </div>
@@ -122,13 +163,25 @@
           focusPassphrase('Please enter the passphrase first.');
           return;
         }
+        if (!isSecureEnoughForCrypto()) {
+          focusPassphrase('Environment issue: this browser/context may block Web Crypto on plain LAN HTTP. Try localhost or HTTPS.');
+          return;
+        }
         status.textContent = 'Decrypting...';
         try {
-          await openEncryptedPdf(a.dataset.file, passphrase);
-          status.textContent = 'Opened';
+          if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
+          currentBlobUrl = await decryptToBlobUrl(a.dataset.file, passphrase);
+          setActionLinks(currentBlobUrl, a.dataset.name);
+          status.textContent = 'Decrypted. Tap Open PDF or Download PDF.';
         } catch (err) {
           console.error(err);
-          focusPassphrase('Passphrase missing or incorrect. Please try again.');
+          if (err && err.code === 'BAD_PASSPHRASE') {
+            focusPassphrase('Passphrase incorrect. Please try again.');
+          } else if (err && err.code === 'ENV_CRYPTO_UNAVAILABLE') {
+            focusPassphrase('Environment issue: Web Crypto is unavailable here. Try localhost or HTTPS.');
+          } else {
+            focusPassphrase('Environment issue: decrypt/open failed in this browser or context. Try localhost or HTTPS.');
+          }
         }
       });
     }

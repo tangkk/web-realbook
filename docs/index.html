@@ -41,6 +41,26 @@
 
   <script>
     let currentBlobUrl = null;
+    const PASSPHRASE_KEY = 'web-realbook-passphrase';
+
+    function getPassphrase() {
+      return document.getElementById('passphrase').value;
+    }
+
+    function setPassphrase(value) {
+      document.getElementById('passphrase').value = value || '';
+    }
+
+    function savePassphrase(value) {
+      try { localStorage.setItem(PASSPHRASE_KEY, value || ''); } catch (e) {}
+    }
+
+    function restorePassphrase() {
+      try {
+        const saved = localStorage.getItem(PASSPHRASE_KEY);
+        if (saved) setPassphrase(saved);
+      } catch (e) {}
+    }
 
     function focusPassphrase(message) {
       const input = document.getElementById('passphrase');
@@ -136,6 +156,9 @@
     }
 
     async function init() {
+      restorePassphrase();
+      const input = document.getElementById('passphrase');
+      input.addEventListener('input', () => savePassphrase(input.value));
       const manifest = await fetch('./secure-manifest.json').then(r => r.json());
       const groups = groupByLetter(manifest);
       const order = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', '#'].filter(k => groups[k]);
@@ -157,8 +180,9 @@
         const a = e.target.closest('a[data-file]');
         if (!a) return;
         e.preventDefault();
-        const passphrase = document.getElementById('passphrase').value;
+        const passphrase = getPassphrase();
         const status = document.getElementById('status');
+        savePassphrase(passphrase);
         if (!passphrase) {
           focusPassphrase('Please enter the passphrase first.');
           return;

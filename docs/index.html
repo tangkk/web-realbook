@@ -248,6 +248,10 @@
         const a = e.target.closest('a[data-file]');
         if (!a) return;
         e.preventDefault();
+        searchInput.value = a.textContent.trim();
+        if (searchOverlay.classList.contains('show')) {
+          searchOverlay.classList.remove('show');
+        }
         const passphrase = getPassphrase();
         const status = document.getElementById('status');
         if (!passphrase) {

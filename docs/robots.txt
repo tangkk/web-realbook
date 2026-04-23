@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://tangkk.github.io/web-realbook/sitemap.xml

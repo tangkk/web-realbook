@@ -188,7 +188,6 @@
         e.preventDefault();
         const passphrase = getPassphrase();
         const status = document.getElementById('status');
-        savePassphrase(passphrase);
         if (!passphrase) {
           focusPassphrase('Please enter the passphrase first.');
           return;

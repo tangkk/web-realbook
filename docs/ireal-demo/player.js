@@ -236,6 +236,42 @@
     ].join('\n');
   }
 
+  function quoteJs(text) {
+    return `"${String(text).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+  }
+
+  function buildReplExportCode(song, bpmOverride) {
+    const { cpm, totalBars } = getPatternParts(song, bpmOverride);
+    const measures = Array.isArray(song.measures) ? song.measures : [];
+
+    const bassBars = measures.map((measure) => {
+      const items = Array.isArray(measure) ? measure : [];
+      if (!items.length) return '~';
+      const tokens = items.map(symbol => chordToTokens(symbol));
+      const bassParts = tokens.map(t => t.bass || '~');
+      if (items.length === 1) return `[${bassParts[0]}]`;
+      return `[${bassParts.map(x => `[${x}]`).join(' ')}]`;
+    });
+
+    const voicingBars = measures.map((measure) => {
+      const items = Array.isArray(measure) ? measure : [];
+      if (!items.length) return '~';
+      const voiced = items.map((symbol) => {
+        const token = chordToTokens(symbol);
+        if (!token.voices.length) return '~';
+        return `[${token.voices.join(',')}]`;
+      });
+      return items.length === 1 ? voiced[0] : `[${voiced.join(' ')}]`;
+    });
+
+    return [
+      `stack(`,
+      `  note(${quoteJs(`<${bassBars.join(' ')}>`)}).room(.5).gain(0.9),`,
+      `  note(${quoteJs(`<${voicingBars.join(' ')}>`)}).room(.5).gain(0.45)`,
+      `).cpm(${cpm.toFixed(4)})`
+    ].join('\n');
+  }
+
   async function ensureStrudel() {
     if (!window.__irealStrudelReady) {
       if (typeof window.initStrudel !== 'function') throw new Error('Strudel library did not load');
@@ -422,9 +458,13 @@
     if (!playBtn || !stopBtn || !copyBtn || !openBtn || !tempoInput || !codeEl) return;
 
     function refreshCode() {
-      const code = buildStrudelCode(song, tempoInput.value);
+      const code = buildReplExportCode(song, tempoInput.value);
       codeEl.value = code;
       return code;
+    }
+
+    function getExportCode() {
+      return buildReplExportCode(song, tempoInput.value);
     }
 
     refreshCode();
@@ -461,9 +501,10 @@
 
     copyBtn.addEventListener('click', async () => {
       try {
-        const code = refreshCode();
+        refreshCode();
+        const code = getExportCode();
         await copyText(code);
-        setStatus('Strudel code copied', false);
+        setStatus('REPL-safe Strudel code copied', false);
       } catch (err) {
         console.error(err);
         setStatus(`Copy failed: ${err.message || err}`, true);
@@ -471,13 +512,16 @@
     });
 
     openBtn.addEventListener('click', async () => {
-      const code = refreshCode();
+      refreshCode();
+      const code = getExportCode();
       await openInStrudel(code);
     });
 
     tempoInput.addEventListener('change', refreshCode);
     tempoInput.addEventListener('input', refreshCode);
   }
+
+  window.buildReplExportCode = buildReplExportCode;
 
   document.addEventListener('DOMContentLoaded', () => {
     const song = getSongData();

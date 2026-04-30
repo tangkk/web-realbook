@@ -207,6 +207,18 @@
     return String(symbol || '').replace(/m7b5/gi, 'h7');
   }
 
+  function buildClickBars(song) {
+    const { beatsPerBar } = parseTimeSignature(song.timeSignature);
+    const measures = Array.isArray(song.measures) ? song.measures : [];
+    return measures.map(() => {
+      const beats = [];
+      for (let i = 1; i <= beatsPerBar; i += 1) {
+        beats.push(i === 2 || i === 4 ? 'hh' : '~');
+      }
+      return `[${beats.join(' ')}]`;
+    });
+  }
+
   function getPatternParts(song, bpmOverride) {
     const bpm = Number(bpmOverride) || Number(song.bpm) || 100;
     const { beatsPerBar } = parseTimeSignature(song.timeSignature);
@@ -220,9 +232,11 @@
 
   function buildPatternObject(song, bpmOverride) {
     const { cpm, bassPattern, chordPattern, totalBars } = getPatternParts(song, bpmOverride);
+    const clickPattern = `<${buildClickBars(song).join(' ')}>`;
     return stack(
-      note(bassPattern).fast(2).slow(totalBars).gain(0.9),
-      chord(chordPattern).voicing().fast(2).slow(totalBars).gain(0.45)
+      note(bassPattern).fast(2).slow(totalBars).room(.5).gain(0.9),
+      chord(chordPattern).voicing().fast(2).slow(totalBars).room(.5).gain(0.45),
+      s(clickPattern).gain(0.5)
     ).cpm(cpm);
   }
 
@@ -253,6 +267,8 @@
       return `[${bassParts.map(x => `[${x}]`).join(' ')}]`;
     });
 
+    const clickBars = buildClickBars(song);
+
     const voicingBars = measures.map((measure) => {
       const items = Array.isArray(measure) ? measure : [];
       if (!items.length) return '~';
@@ -267,7 +283,8 @@
     return [
       `stack(`,
       `  note(${quoteJs(`<${bassBars.join(' ')}>`)}).room(.5).gain(0.9),`,
-      `  note(${quoteJs(`<${voicingBars.join(' ')}>`)}).room(.5).gain(0.45)`,
+      `  note(${quoteJs(`<${voicingBars.join(' ')}>`)}).room(.5).gain(0.45),`,
+      `  s(${quoteJs(`<${clickBars.join(' ')}>`)}).gain(0.5)`,
       `).cpm(${cpm.toFixed(4)})`
     ].join('\n');
   }

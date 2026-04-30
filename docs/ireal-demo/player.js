@@ -12,6 +12,8 @@
   let currentBarIndex = -1;
   let localRepl = null;
   let chordPreviewTimeout = null;
+  let currentVoicingSeed = Math.floor(Math.random() * 0x7fffffff);
+  let currentDisplayContexts = [];
 
   function getSongData() {
     const el = document.getElementById('songData');
@@ -34,6 +36,14 @@
 
   function chordToTokens(symbol) {
     return Engine.toTokens(symbol);
+  }
+
+  function createSeededRng(seed) {
+    let state = (seed >>> 0) || 1;
+    return function () {
+      state = (1664525 * state + 1013904223) >>> 0;
+      return state / 4294967296;
+    };
   }
 
   function allocateBeats(chords, beatsPerBar) {
@@ -110,18 +120,29 @@
 
   function buildExplicitPatterns(song) {
     const measures = Array.isArray(song.measures) ? song.measures : [];
+    const flatSymbols = [];
+    for (const measure of measures) {
+      const items = Array.isArray(measure) ? measure : [];
+      for (const symbol of items) flatSymbols.push(symbol);
+    }
+    const led = Engine.voiceLeadSequence(flatSymbols, { low: 57, high: 84, center: 68, rng: createSeededRng(currentVoicingSeed), randomWindow: 3 });
+    let idx = 0;
+
     const bassBars = measures.map((measure) => {
       const items = Array.isArray(measure) ? measure : [];
       if (!items.length) return '~';
-      const bassParts = items.map(symbol => Engine.toBass(symbol) || '~');
-      if (items.length === 1) return `[${bassParts[0]}]`;
-      return `[${bassParts.map(x => `[${x}]`).join(' ')}]`;
+      const bassParts = items.map(() => (led[idx++]?.bass || '~'));
+      return items.length === 1 ? `[${bassParts[0]}]` : `[${bassParts.map(x => `[${x}]`).join(' ')}]`;
     });
 
+    idx = 0;
     const voicingBars = measures.map((measure) => {
       const items = Array.isArray(measure) ? measure : [];
       if (!items.length) return '~';
-      const voiced = items.map((symbol) => Engine.toStrudelVoicingEvent(symbol));
+      const voiced = items.map(() => {
+        const token = led[idx++];
+        return token && token.voices && token.voices.length ? `[${token.voices.join(',')}]` : '~';
+      });
       return items.length === 1 ? voiced[0] : `[${voiced.join(' ')}]`;
     });
 
@@ -131,6 +152,16 @@
       voicingPattern: `<${voicingBars.join(' ')}>` ,
       clickPattern: `<${clickBars.join(' ')}>`
     };
+  }
+
+  function buildDisplayVoicingContexts(song) {
+    const displayBars = Array.isArray(song.displayBars) ? song.displayBars : [];
+    const flatSymbols = [];
+    displayBars.forEach((bar) => {
+      const chords = Array.isArray(bar.resolvedChords) ? bar.resolvedChords : [];
+      chords.forEach((symbol) => flatSymbols.push(symbol));
+    });
+    return Engine.voiceLeadSequence(flatSymbols, { low: 57, high: 84, center: 68, rng: createSeededRng(currentVoicingSeed), randomWindow: 3 });
   }
 
   function buildPatternObject(song, bpmOverride) {
@@ -327,14 +358,14 @@
     pop.style.top = `${top}px`;
   }
 
-  async function playPreviewChord(chordSymbol) {
+  async function playPreviewChord(chordSymbol, context = null) {
     await ensureStrudel();
     if (chordPreviewTimeout) {
       clearTimeout(chordPreviewTimeout);
       chordPreviewTimeout = null;
     }
-    const bass = Engine.toBass(chordSymbol) || '~';
-    const voices = Engine.toStrudelVoicingEvent(chordSymbol);
+    const bass = context?.bass || Engine.toBass(chordSymbol) || '~';
+    const voices = context?.voices && context.voices.length ? `[${context.voices.join(',')}]` : Engine.toStrudelVoicingEvent(chordSymbol);
     const previewPattern = stack(
       note(`<[${bass}]>`).fast(2).room(.5).gain(0.9),
       note(`<${voices}>`).fast(2).room(.5).gain(0.45)
@@ -359,7 +390,9 @@
     if (!pop || !titleEl || !bassEl || !voicesEl || !playBtn) return;
 
     let currentChord = null;
+    let currentContext = null;
     let hideTimer = null;
+    let tokenIndex = 0;
 
     const hide = () => {
       pop.classList.remove('show');
@@ -370,16 +403,19 @@
       const chord = el.dataset.chord;
       if (!chord) return;
       currentChord = chord;
-      const tokens = Engine.toTokens(chord);
+      const context = currentDisplayContexts[tokenIndexMap.get(el)] || Engine.toTokens(chord);
+      currentContext = context;
       titleEl.textContent = chord;
-      bassEl.textContent = tokens.bass || '—';
-      voicesEl.textContent = tokens.voices && tokens.voices.length ? tokens.voices.join(', ') : '—';
+      bassEl.textContent = context.bass || '—';
+      voicesEl.textContent = context.voices && context.voices.length ? context.voices.join(', ') : '—';
       pop.classList.add('show');
       pop.setAttribute('aria-hidden', 'false');
       positionInspector(pop, el.getBoundingClientRect());
     };
 
+    const tokenIndexMap = new WeakMap();
     document.querySelectorAll('.chord-token').forEach((el) => {
+      tokenIndexMap.set(el, tokenIndex++);
       el.addEventListener('mouseenter', () => {
         if (hideTimer) clearTimeout(hideTimer);
         showFor(el);
@@ -404,7 +440,7 @@
     playBtn.addEventListener('click', async () => {
       if (!currentChord) return;
       try {
-        await playPreviewChord(currentChord);
+        await playPreviewChord(currentChord, currentContext);
       } catch (err) {
         console.error(err);
         setStatus(`Preview failed: ${err.message || err}`, true);
@@ -415,6 +451,8 @@
   function setupSongPage(song) {
     currentSong = song;
     currentMapping = buildPlaybackToDisplayMap(song);
+    currentVoicingSeed = Math.floor(Math.random() * 0x7fffffff);
+    currentDisplayContexts = buildDisplayVoicingContexts(song);
 
     const playBtn = document.getElementById('playBtn');
     const stopBtn = document.getElementById('stopBtn');

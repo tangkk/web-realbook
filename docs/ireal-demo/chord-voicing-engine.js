@@ -138,6 +138,124 @@
     };
   }
 
+  function noteNameToMidi(name) {
+    const m = String(name || '').match(/^([a-g])(b|#)?(-?\d+)$/i);
+    if (!m) return null;
+    const letter = m[1].toUpperCase();
+    const accidental = m[2] || '';
+    const octave = parseInt(m[3], 10);
+    let pc = NOTE_TO_PC[letter];
+    if (accidental === '#') pc += 1;
+    if (accidental === 'b') pc -= 1;
+    return (octave + 1) * 12 + ((pc + 12) % 12);
+  }
+
+  function baseVoicingMidis(symbol) {
+    const token = toTokens(symbol);
+    return token.voices.map(noteNameToMidi).filter(v => Number.isFinite(v));
+  }
+
+  function buildVoiceLeadingCandidates(symbol, options = {}) {
+    const base = baseVoicingMidis(symbol);
+    if (!base.length) return [];
+    const low = options.low ?? 57;
+    const high = options.high ?? 84;
+    const perVoiceChoices = base.map((midi) => {
+      const vals = [];
+      for (let shift = -24; shift <= 24; shift += 12) {
+        const v = midi + shift;
+        if (v >= low && v <= high) vals.push(v);
+      }
+      return vals.length ? vals : [midi];
+    });
+
+    const results = [];
+    function rec(idx, acc) {
+      if (idx === perVoiceChoices.length) {
+        const sorted = [...acc].sort((a, b) => a - b);
+        const dedup = sorted.filter((v, i) => i === 0 || v !== sorted[i - 1]);
+        if (dedup.length === perVoiceChoices.length) results.push(dedup);
+        return;
+      }
+      for (const v of perVoiceChoices[idx]) rec(idx + 1, [...acc, v]);
+    }
+    rec(0, []);
+
+    const uniq = [];
+    const seen = new Set();
+    for (const cand of results) {
+      const key = cand.join(',');
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniq.push(cand);
+      }
+    }
+    return uniq;
+  }
+
+  function voiceLeadingDistance(prev, next) {
+    if (!prev || !prev.length || !next || !next.length) return 0;
+    const n = Math.min(prev.length, next.length);
+    let total = 0;
+    for (let i = 0; i < n; i += 1) total += Math.abs(prev[i] - next[i]);
+    if (prev.length !== next.length) total += 6 * Math.abs(prev.length - next.length);
+
+    // Strongly discourage newly added notes from becoming the new top voice.
+    if (next.length > prev.length) {
+      const extraCount = next.length - prev.length;
+      const extras = next.slice(-extraCount);
+      const prevTop = prev[prev.length - 1];
+      const nextTop = next[next.length - 1];
+      if (extras.includes(nextTop) && nextTop > prevTop) {
+        total += 24 + (nextTop - prevTop) * 2;
+      }
+    }
+    return total;
+  }
+
+  function chooseVoiceLedVoicing(symbol, previousVoices = null, options = {}) {
+    const candidates = buildVoiceLeadingCandidates(symbol, options);
+    if (!candidates.length) return toTokens(symbol).voices;
+    const rng = typeof options.rng === 'function' ? options.rng : Math.random;
+    const randomWindow = options.randomWindow ?? 4;
+    if (!previousVoices || !previousVoices.length) {
+      const center = options.center ?? 68;
+      candidates.sort((a, b) => {
+        const ca = a.reduce((s, v) => s + v, 0) / a.length;
+        const cb = b.reduce((s, v) => s + v, 0) / b.length;
+        return Math.abs(ca - center) - Math.abs(cb - center);
+      });
+      const bestScore = Math.abs((candidates[0].reduce((s, v) => s + v, 0) / candidates[0].length) - center);
+      const pool = candidates.filter((cand) => {
+        const score = Math.abs((cand.reduce((s, v) => s + v, 0) / cand.length) - center);
+        return score <= bestScore + randomWindow;
+      });
+      return pool[Math.floor(rng() * pool.length)].map(midiToNoteName);
+    }
+    const prevMidis = previousVoices.map(noteNameToMidi).filter(v => Number.isFinite(v));
+    let bestScore = Infinity;
+    const scored = candidates.map((cand) => {
+      const score = voiceLeadingDistance(prevMidis, cand);
+      if (score < bestScore) bestScore = score;
+      return { cand, score };
+    });
+    const pool = scored.filter(({ score }) => score <= bestScore + randomWindow).map(({ cand }) => cand);
+    return pool[Math.floor(rng() * pool.length)].map(midiToNoteName);
+  }
+
+  function voiceLeadSequence(symbols, options = {}) {
+    const out = [];
+    let prevVoices = null;
+    for (const symbol of (symbols || [])) {
+      const token = toTokens(symbol);
+      const voices = chooseVoiceLedVoicing(symbol, prevVoices, options);
+      const next = { ...token, voices };
+      out.push(next);
+      prevVoices = voices;
+    }
+    return out;
+  }
+
   function toVoicing(symbol) {
     return toTokens(symbol).voices;
   }
@@ -158,12 +276,16 @@
 
   window.ChordVoicingEngine = {
     midiToNoteName,
+    noteNameToMidi,
     parseRoot,
     parseChordSymbol,
     normalizeQualityText,
     buildChordPitchClasses,
     pitchClassesToVoicingMidi,
     buildExplicitSixVoicing,
+    buildVoiceLeadingCandidates,
+    chooseVoiceLedVoicing,
+    voiceLeadSequence,
     toTokens,
     toVoicing,
     toBass,

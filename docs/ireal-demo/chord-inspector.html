@@ -1,0 +1,112 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Chord Inspector</title>
+  <style>
+    body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:980px;margin:32px auto;padding:0 16px;line-height:1.45;background:#fff;color:#111}
+    .toplinks{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 14px 0}
+    .toplink{display:inline-block;border:1px solid #111;border-radius:999px;padding:8px 12px;font-size:13px;color:#111;background:#fff;text-decoration:none}
+    h1{font-size:30px;line-height:1.1;margin:0 0 8px}
+    p{color:#444}
+    .card{border:1px solid #cfcfcf;border-radius:16px;padding:16px 18px;background:#fff;box-shadow:0 8px 24px rgba(0,0,0,.05);margin:16px 0}
+    .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    input{flex:1;min-width:240px;padding:12px 14px;border:1px solid #bdbdbd;border-radius:10px;font-size:18px}
+    button{display:inline-block;border:1px solid #111;border-radius:999px;padding:10px 14px;font-size:14px;color:#111;background:#fff;cursor:pointer}
+    .examples{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+    .example{border:1px solid #bbb;border-radius:999px;padding:6px 10px;background:#fff;font-size:12px;cursor:pointer}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+    .field{border:1px solid #ddd;border-radius:12px;padding:12px 14px;background:#fafafa}
+    .label{font-size:12px;color:#666;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+    .value{font-size:16px;font-weight:600;word-break:break-word}
+    pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+    .muted{color:#666}
+  </style>
+</head>
+<body>
+  <div class="toplinks">
+    <a class="toplink" href="./index.html">Back to iReal Charts</a>
+    <a class="toplink" href="../index.html">Back to Web Realbook</a>
+  </div>
+
+  <h1>Chord Inspector</h1>
+  <p>Inspect how the chord-to-voicing engine parses a symbol and converts it into bass + voiced Strudel events.</p>
+
+  <section class="card">
+    <div class="controls">
+      <input id="chordInput" type="text" value="F6" spellcheck="false" placeholder="Type a chord symbol, e.g. F6, G-7/F, Bh7, Eb7#11" />
+      <button id="inspectBtn" type="button">Inspect</button>
+    </div>
+    <div class="examples">
+      <button class="example" data-chord="F6">F6</button>
+      <button class="example" data-chord="G-6">G-6</button>
+      <button class="example" data-chord="G-7/F">G-7/F</button>
+      <button class="example" data-chord="Bh7">Bh7</button>
+      <button class="example" data-chord="Eb7#11">Eb7#11</button>
+      <button class="example" data-chord="A7b9">A7b9</button>
+      <button class="example" data-chord="D-7/C">D-7/C</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="grid">
+      <div class="field"><div class="label">Bass</div><div id="bassValue" class="value">—</div></div>
+      <div class="field"><div class="label">Voices</div><div id="voicesValue" class="value">—</div></div>
+      <div class="field"><div class="label">Strudel Bass Event</div><div id="bassEventValue" class="value">—</div></div>
+      <div class="field"><div class="label">Strudel Voicing Event</div><div id="voicingEventValue" class="value">—</div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="label">Parsed Chord Object</div>
+    <pre id="parsedValue" class="muted">—</pre>
+  </section>
+
+  <section class="card">
+    <div class="label">Token Bundle</div>
+    <pre id="tokensValue" class="muted">—</pre>
+  </section>
+
+  <script src="./chord-voicing-engine.js"></script>
+  <script>
+    (function () {
+      const Engine = window.ChordVoicingEngine;
+      const input = document.getElementById('chordInput');
+      const inspectBtn = document.getElementById('inspectBtn');
+      const bassValue = document.getElementById('bassValue');
+      const voicesValue = document.getElementById('voicesValue');
+      const bassEventValue = document.getElementById('bassEventValue');
+      const voicingEventValue = document.getElementById('voicingEventValue');
+      const parsedValue = document.getElementById('parsedValue');
+      const tokensValue = document.getElementById('tokensValue');
+
+      function inspectChord() {
+        const chord = input.value.trim();
+        if (!chord) return;
+        const parsed = Engine.parseChordSymbol(chord);
+        const tokens = Engine.toTokens(chord);
+        bassValue.textContent = tokens.bass || '—';
+        voicesValue.textContent = tokens.voices && tokens.voices.length ? tokens.voices.join(', ') : '—';
+        bassEventValue.textContent = Engine.toStrudelBassEvent(chord);
+        voicingEventValue.textContent = Engine.toStrudelVoicingEvent(chord);
+        parsedValue.textContent = JSON.stringify(parsed, null, 2);
+        tokensValue.textContent = JSON.stringify(tokens, null, 2);
+      }
+
+      inspectBtn.addEventListener('click', inspectChord);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') inspectChord();
+      });
+      document.querySelectorAll('.example').forEach(btn => {
+        btn.addEventListener('click', () => {
+          input.value = btn.dataset.chord || '';
+          inspectChord();
+        });
+      });
+
+      inspectChord();
+    })();
+  </script>
+</body>
+</html>

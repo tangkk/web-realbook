@@ -1,6 +1,9 @@
 (function () {
-  const NOTE_TO_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
-  const PC_TO_NOTE = ['c', 'c#', 'd', 'eb', 'e', 'f', 'f#', 'g', 'ab', 'a', 'bb', 'b'];
+  const Engine = window.ChordVoicingEngine;
+  if (!Engine) {
+    console.error('ChordVoicingEngine not loaded');
+    return;
+  }
 
   let playTimer = null;
   let barTicker = null;
@@ -8,6 +11,7 @@
   let currentMapping = [];
   let currentBarIndex = -1;
   let localRepl = null;
+  let chordPreviewTimeout = null;
 
   function getSongData() {
     const el = document.getElementById('songData');
@@ -28,138 +32,8 @@
     return { beatsPerBar: 4, beatUnit: 4 };
   }
 
-  function midiToNoteName(midi) {
-    const octave = Math.floor(midi / 12) - 1;
-    const pc = ((midi % 12) + 12) % 12;
-    return `${PC_TO_NOTE[pc]}${octave}`;
-  }
-
-  function parseRoot(rootText) {
-    const m = String(rootText || '').match(/^([A-G])([b#]?)/);
-    if (!m) return null;
-    let pc = NOTE_TO_PC[m[1]];
-    if (m[2] === '#') pc += 1;
-    if (m[2] === 'b') pc -= 1;
-    return { letter: m[1], accidental: m[2] || '', pc: (pc + 12) % 12 };
-  }
-
-  function parseChordSymbol(symbol) {
-    if (!symbol || symbol === '/' || symbol === 'W') return null;
-    const cleaned = String(symbol).trim();
-    const slashParts = cleaned.split('/');
-    const head = slashParts[0];
-    const bassText = slashParts[1] || null;
-    const m = head.match(/^([A-G])([b#]?)(.*)$/);
-    if (!m) return null;
-    return {
-      raw: cleaned,
-      root: parseRoot(`${m[1]}${m[2] || ''}`),
-      qualityText: m[3] || '',
-      bass: bassText ? parseRoot(bassText) : null,
-    };
-  }
-
-  function uniqSorted(values) {
-    return [...new Set(values)].sort((a, b) => a - b);
-  }
-
-  function normalizeQualityText(q) {
-    return String(q || '').replace(/m7b5/gi, 'h7');
-  }
-
-  function buildChordPitchClasses(chord) {
-    if (!chord || !chord.root) return [];
-    const q = normalizeQualityText(chord.qualityText);
-    let triad = [0, 4, 7];
-    let seventh = null;
-    let extras = [];
-
-    if (/sus/.test(q)) triad = [0, 5, 7];
-    else if (/o/.test(q)) triad = [0, 3, 6];
-    else if (/h/.test(q)) triad = [0, 3, 6];
-    else if (/-/.test(q)) triad = [0, 3, 7];
-    else if (/#5|\+/.test(q)) triad = [0, 4, 8];
-    else triad = [0, 4, 7];
-
-    if (/\^7/.test(q)) seventh = 11;
-    else if (/h/.test(q)) seventh = 10;
-    else if (/o7/.test(q)) seventh = 9;
-    else if (/-6/.test(q)) seventh = 9;
-    else if (/\b6(?!\d)/.test(q)) seventh = 8;
-    else if (/6(?!\d)/.test(q)) seventh = 9;
-    else if (/-/.test(q) && /7/.test(q)) seventh = 10;
-    else if (/7/.test(q)) seventh = 10;
-    else if (/\^/.test(q)) seventh = 11;
-
-    if (/b5/.test(q) && !/h/.test(q)) triad[2] = 6;
-    if (/#5|\+/.test(q)) triad[2] = 8;
-
-    if (/b9/.test(q)) extras.push(13);
-    else if (/#9/.test(q)) extras.push(15);
-    else if (/9/.test(q)) extras.push(14);
-
-    if (/#11/.test(q)) extras.push(18);
-    else if (/11/.test(q)) extras.push(17);
-
-    if (/b13/.test(q)) extras.push(20);
-    else if (/13/.test(q)) extras.push(21);
-
-    const pcs = [...triad];
-    if (seventh != null) pcs.push(seventh);
-    pcs.push(...extras);
-    return uniqSorted(pcs.map(i => (chord.root.pc + i) % 12));
-  }
-
-  function pitchClassesToVoicingMidi(chord) {
-    const pcs = buildChordPitchClasses(chord);
-    if (!pcs.length) return [];
-    const bassPc = chord.root.pc;
-    const ordered = pcs.sort((a, b) => {
-      const da = (a - bassPc + 12) % 12;
-      const db = (b - bassPc + 12) % 12;
-      return da - db;
-    });
-    const notes = [];
-    let lastMidi = 59;
-    ordered.forEach((pc, idx) => {
-      let midi = idx === 0 ? 60 + pc : lastMidi + 1;
-      while ((midi % 12 + 12) % 12 !== pc) midi += 1;
-      while (midi < 60) midi += 12;
-      while (midi > 84) midi -= 12;
-      if (idx > 0 && midi <= lastMidi) midi += 12;
-      while (midi > 84 && idx > 0) midi -= 12;
-      notes.push(midi);
-      lastMidi = midi;
-    });
-    return notes;
-  }
-
-  function bassMidi(chord) {
-    if (!chord) return null;
-    const base = chord.bass || chord.root;
-    if (!base) return null;
-    return 36 + base.pc;
-  }
-
-  function buildExplicitSixVoicing(chord) {
-    if (!chord || !chord.root) return null;
-    const q = normalizeQualityText(chord.qualityText);
-    const rootMidi = 60 + chord.root.pc;
-    if (/^-6$/.test(q)) return [rootMidi, rootMidi + 3, rootMidi + 7, rootMidi + 9].map(midiToNoteName);
-    if (/^6$/.test(q)) return [rootMidi, rootMidi + 4, rootMidi + 7, rootMidi + 9].map(midiToNoteName);
-    return null;
-  }
-
   function chordToTokens(symbol) {
-    const chord = parseChordSymbol(symbol);
-    if (!chord) return { bass: '~', voices: [] };
-    const bass = midiToNoteName(bassMidi(chord));
-    const explicitSix = buildExplicitSixVoicing(chord);
-    const voicing = (explicitSix || pitchClassesToVoicingMidi(chord).map(midiToNoteName));
-    return {
-      bass,
-      voices: voicing,
-    };
+    return Engine.toTokens(symbol);
   }
 
   function allocateBeats(chords, beatsPerBar) {
@@ -195,7 +69,7 @@
 
       const tokens = items.map((symbol) => chordToTokens(symbol));
       const bassParts = tokens.map(t => t.bass || '~');
-      const chordParts = items.map(symbol => normalizeChordForStrudel(symbol));
+      const chordParts = tokens.map(t => t.normalizedSymbol || '~');
 
       if (items.length === 1) {
         bassBars.push(bassParts[0]);
@@ -209,12 +83,8 @@
     return { bassBars, chordBars, totalBars: measures.length };
   }
 
-  function escapePatternText(text) {
-    return String(text).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-  }
-
   function normalizeChordForStrudel(symbol) {
-    return String(symbol || '').replace(/m7b5/gi, 'h7');
+    return Engine.toTokens(symbol).normalizedSymbol;
   }
 
   function buildClickBars(song) {
@@ -222,9 +92,7 @@
     const measures = Array.isArray(song.measures) ? song.measures : [];
     return measures.map(() => {
       const beats = [];
-      for (let i = 1; i <= beatsPerBar; i += 1) {
-        beats.push(i === 2 || i === 4 ? 'hh' : '~');
-      }
+      for (let i = 1; i <= beatsPerBar; i += 1) beats.push(i === 2 || i === 4 ? 'hh' : '~');
       return `[${beats.join(' ')}]`;
     });
   }
@@ -242,12 +110,10 @@
 
   function buildExplicitPatterns(song) {
     const measures = Array.isArray(song.measures) ? song.measures : [];
-
     const bassBars = measures.map((measure) => {
       const items = Array.isArray(measure) ? measure : [];
       if (!items.length) return '~';
-      const tokens = items.map(symbol => chordToTokens(symbol));
-      const bassParts = tokens.map(t => t.bass || '~');
+      const bassParts = items.map(symbol => Engine.toBass(symbol) || '~');
       if (items.length === 1) return `[${bassParts[0]}]`;
       return `[${bassParts.map(x => `[${x}]`).join(' ')}]`;
     });
@@ -255,11 +121,7 @@
     const voicingBars = measures.map((measure) => {
       const items = Array.isArray(measure) ? measure : [];
       if (!items.length) return '~';
-      const voiced = items.map((symbol) => {
-        const token = chordToTokens(symbol);
-        if (!token.voices.length) return '~';
-        return `[${token.voices.join(',')}]`;
-      });
+      const voiced = items.map((symbol) => Engine.toStrudelVoicingEvent(symbol));
       return items.length === 1 ? voiced[0] : `[${voiced.join(' ')}]`;
     });
 
@@ -279,16 +141,6 @@
       note(voicingPattern).fast(2).room(.5).gain(0.45),
       s(clickPattern).fast(2).gain(0.5)
     ).cpm(cpm);
-  }
-
-  function buildStrudelCode(song, bpmOverride) {
-    const { cpm, bassPattern, chordPattern, totalBars } = getPatternParts(song, bpmOverride);
-    return [
-      `stack(`,
-      `  note('${escapePatternText(bassPattern)}').fast(2).slow(${totalBars}).gain(0.9),`,
-      `  chord('${escapePatternText(chordPattern)}').voicing().fast(2).slow(${totalBars}).gain(0.45)`,
-      `).cpm(${cpm.toFixed(4)})`
-    ].join('\n');
   }
 
   function quoteJs(text) {
@@ -380,7 +232,6 @@
     expandedMeasures.forEach((measure) => {
       const sig = measureSignature(measure);
       let chosen = -1;
-
       if (pointer > 0) {
         const prevBar = displayBars[pointer - 1];
         if (prevBar && prevBar.repeatEnd) {
@@ -392,7 +243,6 @@
           }
         }
       }
-
       if (chosen < 0) {
         for (let i = pointer; i < displaySignatures.length; i += 1) {
           if (displaySignatures[i] === sig) {
@@ -401,7 +251,6 @@
           }
         }
       }
-
       if (chosen < 0) {
         for (let i = 0; i < pointer; i += 1) {
           if (displaySignatures[i] === sig) {
@@ -410,12 +259,10 @@
           }
         }
       }
-
       if (chosen < 0 && displaySignatures.length) chosen = Math.min(pointer, displaySignatures.length - 1);
       mapping.push(chosen + 1);
       pointer = Math.max(0, chosen + 1);
     });
-
     return mapping;
   }
 
@@ -426,12 +273,10 @@
     const msPerBar = (60000 / bpm) * beatsPerBar;
     const totalBars = (song.measures || []).length;
     if (!totalBars) return;
-
     const tick = () => {
       currentBarIndex = (currentBarIndex + 1) % totalBars;
       setPlayingBar(currentMapping[currentBarIndex]);
     };
-
     tick();
     barTicker = setInterval(tick, msPerBar);
   }
@@ -455,21 +300,6 @@
     if (!ok) throw new Error('Clipboard API unavailable');
   }
 
-  async function triggerInitialChord(song) {
-    const first = buildInitialTrigger(song);
-    if (!first) return;
-    try {
-      if (first.bass) {
-        window.note(first.bass).gain(0.9).play();
-      }
-      if (first.chord) {
-        window.chord(first.chord).voicing().gain(0.45).play();
-      }
-    } catch (err) {
-      console.warn('Initial trigger failed', err);
-    }
-  }
-
   async function openInStrudel(code) {
     try {
       await copyText(code);
@@ -478,6 +308,108 @@
     }
     window.open('https://strudel.cc/', '_blank', 'noopener');
     setStatus('Strudel REPL opened. Code copied to clipboard — paste and keep editing there.', false);
+  }
+
+  function positionInspector(pop, rect) {
+    const pad = 12;
+    const width = pop.offsetWidth || 260;
+    const height = pop.offsetHeight || 180;
+    let left = rect.left + window.scrollX;
+    let top = rect.bottom + window.scrollY + 8;
+    const maxLeft = window.scrollX + window.innerWidth - width - pad;
+    if (left > maxLeft) left = maxLeft;
+    if (top + height > window.scrollY + window.innerHeight - pad) {
+      top = rect.top + window.scrollY - height - 8;
+    }
+    if (left < window.scrollX + pad) left = window.scrollX + pad;
+    if (top < window.scrollY + pad) top = window.scrollY + pad;
+    pop.style.left = `${left}px`;
+    pop.style.top = `${top}px`;
+  }
+
+  async function playPreviewChord(chordSymbol) {
+    await ensureStrudel();
+    if (chordPreviewTimeout) {
+      clearTimeout(chordPreviewTimeout);
+      chordPreviewTimeout = null;
+    }
+    const bass = Engine.toBass(chordSymbol) || '~';
+    const voices = Engine.toStrudelVoicingEvent(chordSymbol);
+    const previewPattern = stack(
+      note(`<[${bass}]>`).fast(2).room(.5).gain(0.9),
+      note(`<${voices}>`).fast(2).room(.5).gain(0.45)
+    ).cpm(30);
+    if (!localRepl || typeof localRepl.setPattern !== 'function' || typeof localRepl.start !== 'function') {
+      throw new Error('Local Strudel repl unavailable');
+    }
+    await localRepl.setPattern(previewPattern, true);
+    await localRepl.start();
+    chordPreviewTimeout = setTimeout(() => {
+      if (localRepl && typeof localRepl.stop === 'function') localRepl.stop().catch(() => {});
+      chordPreviewTimeout = null;
+    }, 900);
+  }
+
+  function setupChordInspector() {
+    const pop = document.getElementById('chordInspectorPop');
+    const titleEl = document.getElementById('cipTitle');
+    const bassEl = document.getElementById('cipBass');
+    const voicesEl = document.getElementById('cipVoices');
+    const playBtn = document.getElementById('cipPlayBtn');
+    if (!pop || !titleEl || !bassEl || !voicesEl || !playBtn) return;
+
+    let currentChord = null;
+    let hideTimer = null;
+
+    const hide = () => {
+      pop.classList.remove('show');
+      pop.setAttribute('aria-hidden', 'true');
+    };
+
+    const showFor = (el) => {
+      const chord = el.dataset.chord;
+      if (!chord) return;
+      currentChord = chord;
+      const tokens = Engine.toTokens(chord);
+      titleEl.textContent = chord;
+      bassEl.textContent = tokens.bass || '—';
+      voicesEl.textContent = tokens.voices && tokens.voices.length ? tokens.voices.join(', ') : '—';
+      pop.classList.add('show');
+      pop.setAttribute('aria-hidden', 'false');
+      positionInspector(pop, el.getBoundingClientRect());
+    };
+
+    document.querySelectorAll('.chord-token').forEach((el) => {
+      el.addEventListener('mouseenter', () => {
+        if (hideTimer) clearTimeout(hideTimer);
+        showFor(el);
+      });
+      el.addEventListener('mouseleave', () => {
+        hideTimer = setTimeout(hide, 120);
+      });
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (hideTimer) clearTimeout(hideTimer);
+        showFor(el);
+      });
+    });
+
+    pop.addEventListener('mouseenter', () => {
+      if (hideTimer) clearTimeout(hideTimer);
+    });
+    pop.addEventListener('mouseleave', () => {
+      hideTimer = setTimeout(hide, 120);
+    });
+
+    playBtn.addEventListener('click', async () => {
+      if (!currentChord) return;
+      try {
+        await playPreviewChord(currentChord);
+      } catch (err) {
+        console.error(err);
+        setStatus(`Preview failed: ${err.message || err}`, true);
+      }
+    });
   }
 
   function setupSongPage(song) {
@@ -503,6 +435,7 @@
     }
 
     refreshCode();
+    setupChordInspector();
 
     playBtn.addEventListener('click', async () => {
       try {
@@ -510,9 +443,7 @@
         await ensureStrudel();
         await stopPlaybackAudio();
         const pattern = buildPatternObject(song, tempoInput.value);
-        if (!localRepl || typeof localRepl.setPattern !== 'function' || typeof localRepl.start !== 'function') {
-          throw new Error('Local Strudel repl unavailable');
-        }
+        if (!localRepl || typeof localRepl.setPattern !== 'function' || typeof localRepl.start !== 'function') throw new Error('Local Strudel repl unavailable');
         await localRepl.setPattern(pattern, true);
         await localRepl.start();
         startBarHighlightLoop(song, tempoInput.value);

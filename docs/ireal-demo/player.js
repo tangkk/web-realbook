@@ -141,11 +141,21 @@
     return 36 + base.pc;
   }
 
+  function buildExplicitSixVoicing(chord) {
+    if (!chord || !chord.root) return null;
+    const q = normalizeQualityText(chord.qualityText);
+    const rootMidi = 60 + chord.root.pc;
+    if (/^-6$/.test(q)) return [rootMidi, rootMidi + 3, rootMidi + 7, rootMidi + 9].map(midiToNoteName);
+    if (/^6$/.test(q)) return [rootMidi, rootMidi + 4, rootMidi + 7, rootMidi + 9].map(midiToNoteName);
+    return null;
+  }
+
   function chordToTokens(symbol) {
     const chord = parseChordSymbol(symbol);
     if (!chord) return { bass: '~', voices: [] };
     const bass = midiToNoteName(bassMidi(chord));
-    const voicing = pitchClassesToVoicingMidi(chord).map(midiToNoteName);
+    const explicitSix = buildExplicitSixVoicing(chord);
+    const voicing = (explicitSix || pitchClassesToVoicingMidi(chord).map(midiToNoteName));
     return {
       bass,
       voices: voicing,
@@ -230,13 +240,44 @@
     return { bpm, cpm, bassPattern, chordPattern, totalBars };
   }
 
+  function buildExplicitPatterns(song) {
+    const measures = Array.isArray(song.measures) ? song.measures : [];
+
+    const bassBars = measures.map((measure) => {
+      const items = Array.isArray(measure) ? measure : [];
+      if (!items.length) return '~';
+      const tokens = items.map(symbol => chordToTokens(symbol));
+      const bassParts = tokens.map(t => t.bass || '~');
+      if (items.length === 1) return `[${bassParts[0]}]`;
+      return `[${bassParts.map(x => `[${x}]`).join(' ')}]`;
+    });
+
+    const voicingBars = measures.map((measure) => {
+      const items = Array.isArray(measure) ? measure : [];
+      if (!items.length) return '~';
+      const voiced = items.map((symbol) => {
+        const token = chordToTokens(symbol);
+        if (!token.voices.length) return '~';
+        return `[${token.voices.join(',')}]`;
+      });
+      return items.length === 1 ? voiced[0] : `[${voiced.join(' ')}]`;
+    });
+
+    const clickBars = buildClickBars(song);
+    return {
+      bassPattern: `<${bassBars.join(' ')}>` ,
+      voicingPattern: `<${voicingBars.join(' ')}>` ,
+      clickPattern: `<${clickBars.join(' ')}>`
+    };
+  }
+
   function buildPatternObject(song, bpmOverride) {
-    const { cpm, bassPattern, chordPattern, totalBars } = getPatternParts(song, bpmOverride);
-    const clickPattern = `<${buildClickBars(song).join(' ')}>`;
+    const { cpm } = getPatternParts(song, bpmOverride);
+    const { bassPattern, voicingPattern, clickPattern } = buildExplicitPatterns(song);
     return stack(
-      note(bassPattern).fast(2).slow(totalBars).room(.5).gain(0.9),
-      chord(chordPattern).voicing().fast(2).slow(totalBars).room(.5).gain(0.45),
-      s(clickPattern).gain(0.5)
+      note(bassPattern).fast(2).room(.5).gain(0.9),
+      note(voicingPattern).fast(2).room(.5).gain(0.45),
+      s(clickPattern).fast(2).gain(0.5)
     ).cpm(cpm);
   }
 
@@ -255,36 +296,13 @@
   }
 
   function buildReplExportCode(song, bpmOverride) {
-    const { cpm, totalBars } = getPatternParts(song, bpmOverride);
-    const measures = Array.isArray(song.measures) ? song.measures : [];
-
-    const bassBars = measures.map((measure) => {
-      const items = Array.isArray(measure) ? measure : [];
-      if (!items.length) return '~';
-      const tokens = items.map(symbol => chordToTokens(symbol));
-      const bassParts = tokens.map(t => t.bass || '~');
-      if (items.length === 1) return `[${bassParts[0]}]`;
-      return `[${bassParts.map(x => `[${x}]`).join(' ')}]`;
-    });
-
-    const clickBars = buildClickBars(song);
-
-    const voicingBars = measures.map((measure) => {
-      const items = Array.isArray(measure) ? measure : [];
-      if (!items.length) return '~';
-      const voiced = items.map((symbol) => {
-        const token = chordToTokens(symbol);
-        if (!token.voices.length) return '~';
-        return `[${token.voices.join(',')}]`;
-      });
-      return items.length === 1 ? voiced[0] : `[${voiced.join(' ')}]`;
-    });
-
+    const { cpm } = getPatternParts(song, bpmOverride);
+    const { bassPattern, voicingPattern, clickPattern } = buildExplicitPatterns(song);
     return [
       `stack(`,
-      `  note(${quoteJs(`<${bassBars.join(' ')}>`)}).room(.5).gain(0.9),`,
-      `  note(${quoteJs(`<${voicingBars.join(' ')}>`)}).room(.5).gain(0.45),`,
-      `  s(${quoteJs(`<${clickBars.join(' ')}>`)}).gain(0.5)`,
+      `  note(${quoteJs(bassPattern)}).fast(2).room(.5).gain(0.9),`,
+      `  note(${quoteJs(voicingPattern)}).fast(2).room(.5).gain(0.45),`,
+      `  s(${quoteJs(clickPattern)}).fast(2).gain(0.5)`,
       `).cpm(${cpm.toFixed(4)})`
     ].join('\n');
   }

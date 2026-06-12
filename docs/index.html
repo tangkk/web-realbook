@@ -58,7 +58,7 @@
 
   <section class="intro">
     <h1>Web Realbook</h1>
-    <p>A searchable jazz realbook index with alphabetically grouped tune entries, a lightweight find-style search popup, and passphrase-protected chart access. The current library contains 2872 encrypted chart entries. Need a passphrase? Contact me directly.</p>
+    <p>A searchable jazz realbook index with alphabetically grouped tune entries, a lightweight find-style search popup, and passphrase-protected chart access. The current library contains 3049 encrypted chart entries. Need a passphrase? Contact me directly.</p>
   </section>
 
   <div class="bar">
@@ -230,7 +230,8 @@
         restorePassphrase();
         focusPassphrase('Passphrase recovered from local storage.');
       });
-      const manifest = await fetch('./secure-manifest.json').then(r => r.json());
+      const manifest = (await fetch('./secure-manifest.json').then(r => r.json()))
+        .filter(e => !e.title.toLowerCase().includes('newreal3'));
       const groups = groupByLetter(manifest);
       const allItems = Object.values(groups).flat();
       const order = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', '#'].filter(k => groups[k]);

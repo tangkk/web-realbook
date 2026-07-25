@@ -90,6 +90,7 @@
   <script>
     let currentBlobUrl = null;
     const PASSPHRASE_KEY = 'web-realbook-passphrase';
+    const HARDCODED_PASSPHRASE = 'lifeisalotlikejazz';
 
     function getPassphrase() {
       return document.getElementById('passphrase').value;
@@ -294,12 +295,7 @@
         if (searchOverlay.classList.contains('show')) {
           searchOverlay.classList.remove('show');
         }
-        const passphrase = getPassphrase();
         const status = document.getElementById('status');
-        if (!passphrase) {
-          focusPassphrase('Please enter the passphrase first.');
-          return;
-        }
         if (!isSecureEnoughForCrypto()) {
           focusPassphrase('Environment issue: this browser/context may block Web Crypto on plain LAN HTTP. Try localhost or HTTPS.');
           return;
@@ -307,15 +303,13 @@
         status.textContent = 'Decrypting...';
         try {
           if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
-          currentBlobUrl = await decryptToBlobUrl(a.dataset.file, passphrase);
-          savePassphrase(passphrase);
+          currentBlobUrl = await decryptToBlobUrl(a.dataset.file, HARDCODED_PASSPHRASE);
+          savePassphrase(HARDCODED_PASSPHRASE);
           setActionLinks(currentBlobUrl, a.dataset.name);
           status.textContent = 'Decrypted. Tap Open PDF or Download PDF.';
         } catch (err) {
           console.error(err);
-          if (err && err.code === 'BAD_PASSPHRASE') {
-            focusPassphrase('Passphrase incorrect. Please try again.');
-          } else if (err && err.code === 'ENV_CRYPTO_UNAVAILABLE') {
+          if (err && err.code === 'ENV_CRYPTO_UNAVAILABLE') {
             focusPassphrase('Environment issue: Web Crypto is unavailable here. Try localhost or HTTPS.');
           } else {
             focusPassphrase('Environment issue: decrypt/open failed in this browser or context. Try localhost or HTTPS.');

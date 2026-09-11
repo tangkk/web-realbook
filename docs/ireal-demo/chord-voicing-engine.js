@@ -274,6 +274,55 @@
     return bass ? `[${bass}]` : '~';
   }
 
+  // ---- Transpose engine (iReal-style diatonic spelling, flat-preferring fallback) ----
+  const TRANSPOSE_LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+  const TRANSPOSE_DIATONIC_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  const TRANSPOSE_FLAT_SPELL = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+  const TRANSPOSE_STEPS_UP = [0, 1, 1, 2, 2, 3, 3, 4, 5, 5, 6, 6];
+
+  function transposeMod(n, m) {
+    return ((n % m) + m) % m;
+  }
+
+  function transposeRoot(letter, accidental, semitones) {
+    const acc = accidental === '#' ? 1 : accidental === 'b' ? -1 : 0;
+    const pc = transposeMod(TRANSPOSE_DIATONIC_PC[letter] + acc, 12);
+    const targetPc = transposeMod(pc + semitones, 12);
+    const dir = semitones >= 0 ? 1 : -1;
+    const r = transposeMod(semitones, 12);
+    let steps;
+    if (r === 0) steps = 0;
+    else if (r === 6) steps = dir > 0 ? 3 : 4; // 增四(上) / 减五(下)
+    else steps = TRANSPOSE_STEPS_UP[r];
+    const newLetter = TRANSPOSE_LETTERS[transposeMod(TRANSPOSE_LETTERS.indexOf(letter) + dir * steps, 7)];
+    const delta = targetPc - TRANSPOSE_DIATONIC_PC[newLetter];
+    if (delta < -1 || delta > 1) return TRANSPOSE_FLAT_SPELL[targetPc]; // 罕见拼写兜底
+    return newLetter + (delta === 0 ? '' : (delta > 0 ? '#' : 'b'));
+  }
+
+  function transposeNoteName(note, semitones) {
+    const m = String(note || '').match(/^([A-G])([b#]?)/);
+    if (!m) return note;
+    return transposeRoot(m[1], m[2], semitones);
+  }
+
+  function transposeChordSymbol(symbol, semitones) {
+    if (!semitones) return symbol;
+    if (!symbol || typeof symbol !== 'string') return symbol;
+    const s = symbol.trim();
+    if (!/^[A-G]/.test(s)) return symbol; // N.C. / W / / 等原样保留
+    const slash = s.split('/');
+    const head = slash[0];
+    const m = head.match(/^([A-G])([b#]?)(.*)$/);
+    if (!m) return symbol;
+    let out = transposeRoot(m[1], m[2], semitones) + m[3];
+    if (slash.length > 1) {
+      const b = slash[1].match(/^([A-G])([b#]?)$/);
+      out += '/' + (b ? transposeRoot(b[1], b[2], semitones) : slash[1]);
+    }
+    return out;
+  }
+
   window.ChordVoicingEngine = {
     midiToNoteName,
     noteNameToMidi,
@@ -291,5 +340,8 @@
     toBass,
     toStrudelVoicingEvent,
     toStrudelBassEvent,
+    transposeChordSymbol,
+    transposeNoteName,
+    transposeRoot,
   };
 })();

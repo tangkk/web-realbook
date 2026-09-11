@@ -15,6 +15,12 @@
   let currentVoicingSeed = Math.floor(Math.random() * 0x7fffffff);
   let currentDisplayContexts = [];
 
+  let originalSong = null;
+  let currentTranspose = 0;
+  let tempoInputEl = null;
+  let codeEl = null;
+  let transposeValueEl = null;
+
   function getSongData() {
     const el = document.getElementById('songData');
     if (!el) return null;
@@ -448,7 +454,100 @@
     });
   }
 
+  function transposeSongData(song, semitones) {
+    const out = JSON.parse(JSON.stringify(song));
+    const tr = (c) => Engine.transposeChordSymbol(c, semitones);
+    out.measures = (out.measures || []).map((ms) => (Array.isArray(ms) ? ms.map(tr) : ms));
+    out.displayBars = (out.displayBars || []).map((bar) => {
+      if (Array.isArray(bar.resolvedChords)) bar.resolvedChords = bar.resolvedChords.map(tr);
+      return bar;
+    });
+    if (out.key) out.key = Engine.transposeChordSymbol(out.key, semitones);
+    return out;
+  }
+
+  function renderTokenSymbol(el, sym) {
+    const mainEl = el.querySelector('.chord-main');
+    const bassEl = el.querySelector('.chord-bass');
+    const slash = sym.indexOf('/');
+    const mainText = slash > 0 ? sym.slice(0, slash) : sym;
+    const bassText = slash > 0 ? sym.slice(slash + 1) : '';
+    if (mainEl) mainEl.textContent = mainText;
+    if (bassEl) bassEl.textContent = bassText;
+  }
+
+  function updateMetaKey(newKey) {
+    document.querySelectorAll('.meta-item').forEach((item) => {
+      const label = item.querySelector('.meta-label');
+      if (label && label.textContent.trim() === 'Key') {
+        const value = item.querySelector('.meta-value');
+        if (value) value.textContent = newKey;
+      }
+    });
+  }
+
+  function refreshCode() {
+    if (!codeEl || !tempoInputEl || !currentSong) return '';
+    const code = buildReplExportCode(currentSong, tempoInputEl.value);
+    codeEl.value = code;
+    return code;
+  }
+
+  function updateTransposeLabel() {
+    if (!transposeValueEl) return;
+    const key = (currentSong && currentSong.key) ? currentSong.key : (originalSong ? originalSong.key : '');
+    const sign = currentTranspose > 0 ? '+' : '';
+    transposeValueEl.textContent = currentTranspose === 0
+      ? `Key: ${key}`
+      : `${sign}${currentTranspose} · Key: ${key}`;
+  }
+
+  function applyTranspose(delta) {
+    if (!originalSong) return;
+    currentTranspose += delta;
+    currentSong = transposeSongData(originalSong, currentTranspose);
+
+    document.querySelectorAll('.chord-token').forEach((el) => {
+      if (!el.dataset.originalChord) el.dataset.originalChord = el.dataset.chord || '';
+      const newSym = Engine.transposeChordSymbol(el.dataset.originalChord, currentTranspose);
+      el.dataset.chord = newSym;
+      renderTokenSymbol(el, newSym);
+    });
+
+    updateMetaKey(currentSong.key);
+    currentMapping = buildPlaybackToDisplayMap(currentSong);
+    currentVoicingSeed = Math.floor(Math.random() * 0x7fffffff);
+    currentDisplayContexts = buildDisplayVoicingContexts(currentSong);
+    refreshCode();
+    updateTransposeLabel();
+    const amt = currentTranspose >= 0 ? `+${currentTranspose}` : `${currentTranspose}`;
+    setStatus(currentTranspose === 0 ? 'Transpose reset.' : `Transposed ${amt} semitone${Math.abs(currentTranspose) === 1 ? '' : 's'}.`, false);
+  }
+
+  function injectTransposeUI() {
+    const grid = document.querySelector('.chart .grid');
+    if (!grid || document.getElementById('transposeBar')) return;
+    const bar = document.createElement('div');
+    bar.id = 'transposeBar';
+    bar.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap';
+    bar.innerHTML = [
+      '<span style="font-size:12px;color:#555;text-transform:uppercase;letter-spacing:.06em">Transpose</span>',
+      '<button type="button" id="transposeDown" style="padding:6px 10px;border:1px solid #bdbdbd;border-radius:8px;background:#fff;color:#111;font-size:13px;cursor:pointer">−1</button>',
+      '<span id="transposeValue" style="font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;min-width:92px"></span>',
+      '<button type="button" id="transposeUp" style="padding:6px 10px;border:1px solid #bdbdbd;border-radius:8px;background:#fff;color:#111;font-size:13px;cursor:pointer">+1</button>',
+      '<button type="button" id="transposeReset" style="padding:6px 10px;border:1px solid transparent;border-radius:8px;background:transparent;color:#555;font-size:13px;cursor:pointer">Reset</button>',
+    ].join('');
+    grid.insertAdjacentElement('beforebegin', bar);
+    transposeValueEl = document.getElementById('transposeValue');
+    document.getElementById('transposeDown').addEventListener('click', () => applyTranspose(-1));
+    document.getElementById('transposeUp').addEventListener('click', () => applyTranspose(1));
+    document.getElementById('transposeReset').addEventListener('click', () => applyTranspose(-currentTranspose));
+    updateTransposeLabel();
+  }
+
   function setupSongPage(song) {
+    originalSong = JSON.parse(JSON.stringify(song));
+    currentTranspose = 0;
     currentSong = song;
     currentMapping = buildPlaybackToDisplayMap(song);
     currentVoicingSeed = Math.floor(Math.random() * 0x7fffffff);
@@ -459,33 +558,29 @@
     const copyBtn = document.getElementById('copyCodeBtn');
     const openBtn = document.getElementById('openReplBtn');
     const tempoInput = document.getElementById('tempoInput');
-    const codeEl = document.getElementById('strudelCode');
+    codeEl = document.getElementById('strudelCode');
+    tempoInputEl = tempoInput;
     if (!playBtn || !stopBtn || !copyBtn || !openBtn || !tempoInput || !codeEl) return;
 
-    function refreshCode() {
-      const code = buildReplExportCode(song, tempoInput.value);
-      codeEl.value = code;
-      return code;
-    }
-
     function getExportCode() {
-      return buildReplExportCode(song, tempoInput.value);
+      return buildReplExportCode(currentSong, tempoInput.value);
     }
 
     refreshCode();
     setupChordInspector();
+    injectTransposeUI();
 
     playBtn.addEventListener('click', async () => {
       try {
         refreshCode();
         await ensureStrudel();
         await stopPlaybackAudio();
-        const pattern = buildPatternObject(song, tempoInput.value);
+        const pattern = buildPatternObject(currentSong, tempoInput.value);
         if (!localRepl || typeof localRepl.setPattern !== 'function' || typeof localRepl.start !== 'function') throw new Error('Local Strudel repl unavailable');
         await localRepl.setPattern(pattern, true);
         await localRepl.start();
-        startBarHighlightLoop(song, tempoInput.value);
-        setStatus(`Playing at ${tempoInput.value || song.bpm || 100} BPM · loops over ${song.measures.length} performance bars`, false);
+        startBarHighlightLoop(currentSong, tempoInput.value);
+        setStatus(`Playing at ${tempoInput.value || currentSong.bpm || 100} BPM · loops over ${currentSong.measures.length} performance bars`, false);
       } catch (err) {
         console.error(err);
         clearPlaybackVisuals();

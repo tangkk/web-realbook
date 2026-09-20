@@ -50,12 +50,12 @@
     .actions{display:none;gap:10px;flex-wrap:wrap;margin:0 0 18px 0}
     .actions.show{display:flex}
     .btn{display:inline-block;border:1px solid #111;border-radius:999px;padding:8px 14px;font-size:13px;color:#111;background:#fff;text-decoration:none}
-    .viewer{display:none;width:90%;margin:0 auto 24px auto;border:1px solid #bdbdbd;border-radius:12px;background:#fff;overflow:hidden}
+    .viewer{display:none;margin:0 0 24px 0;border:1px solid #bdbdbd;border-radius:12px;background:#fff;overflow:hidden}
     .viewer.show{display:block}
     .viewer-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #bdbdbd}
     .viewer-title{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .viewer-actions{display:flex;gap:8px;flex-shrink:0}
-    .viewer-frame{display:block;width:100%;height:auto;aspect-ratio:1/1.45;min-height:480px;border:0;background:#f4f4f4}
+    .viewer-frame{display:block;width:100%;height:auto;aspect-ratio:1/1.35;min-height:480px;border:0;background:#f4f4f4}
     a,a:visited,a:hover,a:active{color:#111;text-decoration:none}
     a:hover{text-decoration:underline}
   </style>
@@ -169,7 +169,7 @@
       const wasOpen = viewer.classList.contains('show');
       document.getElementById('viewerTitle').textContent = titleFromStem((filename || 'chart').replace(/\.pdf$/i, ''));
       document.getElementById('viewerNewTab').href = blobUrl;
-      document.getElementById('viewerFrame').src = blobUrl;
+      document.getElementById('viewerFrame').src = `${blobUrl}#zoom=90`;
       viewer.classList.add('show');
       if (!wasOpen) viewer.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }

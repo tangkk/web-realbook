@@ -50,6 +50,12 @@
     .actions{display:none;gap:10px;flex-wrap:wrap;margin:0 0 18px 0}
     .actions.show{display:flex}
     .btn{display:inline-block;border:1px solid #111;border-radius:999px;padding:8px 14px;font-size:13px;color:#111;background:#fff;text-decoration:none}
+    .viewer{display:none;margin:0 0 24px 0;border:1px solid #bdbdbd;border-radius:12px;background:#fff;overflow:hidden}
+    .viewer.show{display:block}
+    .viewer-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #bdbdbd}
+    .viewer-title{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .viewer-actions{display:flex;gap:8px;flex-shrink:0}
+    .viewer-frame{display:block;width:100%;height:85vh;height:85dvh;min-height:480px;border:0;background:#f4f4f4}
     a,a:visited,a:hover,a:active{color:#111;text-decoration:none}
     a:hover{text-decoration:underline}
   </style>
@@ -76,7 +82,18 @@
   <div id="status" class="status"></div>
   <div id="actions" class="actions">
     <a id="openBtn" class="btn" href="#">Open PDF</a>
+    <a id="embedBtn" class="btn" href="#">View Here</a>
     <a id="downloadBtn" class="btn" href="#" download>Download PDF</a>
+  </div>
+  <div id="viewer" class="viewer">
+    <div class="viewer-head">
+      <div id="viewerTitle" class="viewer-title"></div>
+      <div class="viewer-actions">
+        <a id="viewerNewTab" class="mini-btn" href="#" target="_blank" rel="noopener">New tab</a>
+        <button id="closeViewer" class="mini-btn" type="button">Close</button>
+      </div>
+    </div>
+    <iframe id="viewerFrame" class="viewer-frame" title="PDF viewer"></iframe>
   </div>
   <div id="list"></div>
   <a id="backToTop" class="backtotop" href="#top">Back to top</a>
@@ -125,15 +142,40 @@
     function setActionLinks(blobUrl, filename) {
       const actions = document.getElementById('actions');
       const openBtn = document.getElementById('openBtn');
+      const embedBtn = document.getElementById('embedBtn');
       const downloadBtn = document.getElementById('downloadBtn');
       openBtn.href = blobUrl;
       openBtn.onclick = () => {
         location.href = blobUrl;
       };
+      embedBtn.href = blobUrl;
+      embedBtn.onclick = (e) => {
+        e.preventDefault();
+        showViewer(blobUrl, filename);
+      };
       downloadBtn.href = blobUrl;
       downloadBtn.download = filename || 'chart.pdf';
       actions.classList.add('show');
-      actions.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (document.getElementById('viewer').classList.contains('show')) {
+        showViewer(blobUrl, filename);
+      } else {
+        actions.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+
+    function showViewer(blobUrl, filename) {
+      const viewer = document.getElementById('viewer');
+      const wasOpen = viewer.classList.contains('show');
+      document.getElementById('viewerTitle').textContent = titleFromStem((filename || 'chart').replace(/\.pdf$/i, ''));
+      document.getElementById('viewerNewTab').href = blobUrl;
+      document.getElementById('viewerFrame').src = blobUrl;
+      viewer.classList.add('show');
+      if (!wasOpen) viewer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function hideViewer() {
+      document.getElementById('viewerFrame').src = 'about:blank';
+      document.getElementById('viewer').classList.remove('show');
     }
 
     function isSecureEnoughForCrypto() {
@@ -276,6 +318,7 @@
         renderSearchResults(matches, searchInput.value.trim());
       });
       closeSearch.addEventListener('click', () => searchOverlay.classList.remove('show'));
+      document.getElementById('closeViewer').addEventListener('click', hideViewer);
       searchOverlay.addEventListener('click', (e) => {
         if (e.target === searchOverlay) searchOverlay.classList.remove('show');
       });
@@ -309,11 +352,12 @@
         }
         status.textContent = 'Decrypting...';
         try {
-          if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
+          const prevBlobUrl = currentBlobUrl;
           currentBlobUrl = await decryptToBlobUrl(a.dataset.file, passphrase);
           savePassphrase(passphrase);
           setActionLinks(currentBlobUrl, a.dataset.name);
-          status.textContent = 'Decrypted. Tap Open PDF or Download PDF.';
+          if (prevBlobUrl) URL.revokeObjectURL(prevBlobUrl);
+          status.textContent = 'Decrypted. Tap Open PDF, View Here or Download PDF.';
         } catch (err) {
           console.error(err);
           if (err && err.code === 'BAD_PASSPHRASE') {

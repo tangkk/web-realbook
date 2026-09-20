@@ -63,6 +63,11 @@ Current behavior after successful decryption:
 
 This is more stable on mobile browsers than immediately trying to open a blob in a new tab.
 
+A third button, `View Here`, embeds the chart in an iframe viewer on the main page (above the list). `Open PDF` and `Download PDF` behave as before.
+
+- the viewer header has `New tab` (opens the blob directly) and `Close`
+- clicking another tune while the viewer is open swaps the embedded PDF to the new chart
+
 ### 4. Search bar
 
 The page includes a lightweight search bar.
